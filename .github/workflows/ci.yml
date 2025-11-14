@@ -1,0 +1,26 @@
+# .github/workflows/ci.yml
+
+# Nom du workflow qui apparaîtra dans l'onglet "Actions" de GitHub
+name: Continuous Integration
+
+# Événement déclencheur : ce workflow s'exécute à chaque 'push' sur la branche 'main'
+on:
+  push:
+    branches: [ "main" ]
+
+# Liste des "jobs" (tâches) à exécuter
+jobs:
+  # Nom du job (vous pouvez choisir ce que vous voulez)
+  build-docker-image:
+    # Machine virtuelle sur laquelle le job va tourner (fournie par GitHub)
+    runs-on: ubuntu-latest
+
+    # Séquence d'étapes (steps) à exécuter pour ce job
+    steps:
+      # Étape 1: Récupérer le code de votre dépôt
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Étape 2: Construire l'image Docker
+      - name: Build Docker image
+        run: docker build -t mon-app-cicd:${{ github.sha }} .
