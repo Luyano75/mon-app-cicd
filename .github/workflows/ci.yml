@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: Continuous Integration and Delivery
+name: Continuous Integration and Deployment
 
 on:
   push:
@@ -8,45 +8,40 @@ on:
 
 jobs:
   build-and-test:
+    # ... (le job build-and-test reste EXACTEMENT le même, pas besoin de le copier ici) ...
+    # ... on le suppose inchangé et réussi ...
+  
+  # --- NOUVEAU JOB POUR LE DÉPLOIEMENT ---
+  deploy:
+    # Ce job ne démarre que si le job 'build-and-test' a réussi
+    needs: build-and-test
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # --- L'étape de Build a été modifiée ---
-      - name: Build Docker image
-        # On tague l'image directement avec le nom attendu par Docker Hub
-        # Format: VOTRE_USERNAME/NOM_IMAGE:TAG
-        # On utilise github.sha pour un tag unique à chaque commit
-        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:${{ github.sha }} -t ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest .
-
-      # --- Les étapes de test restent identiques ---
-      - name: Run container
-        # On utilise le tag 'latest' pour le test pour simplifier la commande
-        run: docker run -d --name test-container -p 8080:80 ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest
-
-      - name: Wait for container and check logs
+      - name: Set up SSH key
         run: |
-          sleep 5
-          echo "---- DOCKER CONTAINER STATUS ----"
-          docker ps -a
-          echo "---- DOCKER CONTAINER LOGS ----"
-          docker logs test-container
+          mkdir -p ~/.ssh/
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Perform a health check
-        run: curl --fail http://localhost:8080 | grep "Hello, CI/CD World!"
-      
-      # --- NOUVELLES ÉTAPES POUR LE PUSH ---
-      - name: Log in to Docker Hub
-        # On utilise une action officielle pour se connecter
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Push image to Docker Hub
-        # On pousse les deux tags: le tag unique du commit et le tag 'latest'
+      - name: Create dynamic inventory
         run: |
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:${{ github.sha }}
-          docker push ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest
+          # Remplace les virgules par des retours à la ligne
+          echo "[webservers]" > inventory.ini
+          echo "${{ secrets.SERVER_IPS }}" | tr ',' '\n' >> inventory.ini
+
+      - name: Install Ansible and dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ansible
+          ansible-galaxy collection install community.docker
+
+      - name: Run Ansible Playbook
+        run: >
+          ansible-playbook playbook.yml -i inventory.ini 
+          -u ${{ secrets.SSH_USER }} 
+          --extra-vars "dockerhub_username=${{ secrets.DOCKERHUB_USERNAME }}"
+          --ssh-common-args='-o StrictHostKeyChecking=no'
