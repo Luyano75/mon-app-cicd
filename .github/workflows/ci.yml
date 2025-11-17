@@ -17,17 +17,19 @@ jobs:
       - name: Build Docker image
         run: docker build -t mon-app .
 
-      - name: Run container and perform a health check
+      - name: Run container
+        run: docker run -d --name test-container -p 8080:80 mon-app
+
+      # NOUVELLE ÉTAPE : Attendre que le conteneur soit stable et vérifier son état
+      - name: Wait for container and check logs
         run: |
-          echo "Starting container..."
-          docker run -d --name test-container -p 8080:80 mon-app
-          
-          echo "Waiting for application to start..."
           sleep 5
-          
+          echo "---- DOCKER CONTAINER STATUS ----"
+          docker ps -a
+          echo "---- DOCKER CONTAINER LOGS ----"
+          docker logs test-container
+
+      - name: Perform a health check
+        run: |
           echo "Sending request to the application..."
-          curl --fail http://localhost:8080 | grep "Hello, CI/CD World!" || exit 1
-          
-          echo "Cleaning up container..."
-          docker stop test-container
-          docker rm test-container
+          curl --fail http://localhost:8080 | grep "Hello, CI/CD World!"
