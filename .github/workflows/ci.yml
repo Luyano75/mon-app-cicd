@@ -29,5 +29,5 @@ jobs:
           
           # Faire une requête HTTP et vérifier que la réponse contient bien "Hello, CI/CD World!"
           # Le 'grep' retournera un code d'erreur si le texte n'est pas trouvé, faisant échouer le step
-    curl http://localhost:8080 | grep "Hello, CI/CD World"
+        curl http://localhost:8080 | grep "Hello, CI/CD World"
         
