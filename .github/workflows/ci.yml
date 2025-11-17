@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: Continuous Integration
+name: Continuous Integration and Delivery
 
 on:
   push:
@@ -14,13 +14,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # --- L'étape de Build a été modifiée ---
       - name: Build Docker image
-        run: docker build -t mon-app .
+        # On tague l'image directement avec le nom attendu par Docker Hub
+        # Format: VOTRE_USERNAME/NOM_IMAGE:TAG
+        # On utilise github.sha pour un tag unique à chaque commit
+        run: docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:${{ github.sha }} -t ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest .
 
+      # --- Les étapes de test restent identiques ---
       - name: Run container
-        run: docker run -d --name test-container -p 8080:80 mon-app
+        # On utilise le tag 'latest' pour le test pour simplifier la commande
+        run: docker run -d --name test-container -p 8080:80 ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest
 
-      # NOUVELLE ÉTAPE : Attendre que le conteneur soit stable et vérifier son état
       - name: Wait for container and check logs
         run: |
           sleep 5
@@ -30,6 +35,18 @@ jobs:
           docker logs test-container
 
       - name: Perform a health check
+        run: curl --fail http://localhost:8080 | grep "Hello, CI/CD World!"
+      
+      # --- NOUVELLES ÉTAPES POUR LE PUSH ---
+      - name: Log in to Docker Hub
+        # On utilise une action officielle pour se connecter
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Push image to Docker Hub
+        # On pousse les deux tags: le tag unique du commit et le tag 'latest'
         run: |
-          echo "Sending request to the application..."
-          curl --fail http://localhost:8080 | grep "Hello, CI/CD World!"
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/mon-app-cicd:latest
